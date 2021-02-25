@@ -1,0 +1,36 @@
+# SLO for 99.9% Successful http requests against service
+{
+  "name": null,
+  "displayName": "99% - Good/Total Ratio - Calendar day",
+  "goal": 0.999,
+  "calendarPeriod": "DAY",
+  "serviceLevelIndicator": {
+    "requestBased": {
+      "goodTotalRatio": {
+        "goodServiceFilter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"api\"",
+        "badServiceFilter": null,
+        "totalServiceFilter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"api\""
+      }
+    }
+  }
+}
+
+# SLO for 95% performance where CPU load 5min-avgs below 80% over 7 days rolling
+{
+  "name": null,
+  "displayName": "95% - Metric Sum in Range - Rolling 7 days",
+  "goal": 0.95,
+  "rollingPeriod": "604800s",
+  "serviceLevelIndicator": {
+    "windowsBased": {
+      "windowPeriod": "300s",
+      "metricSumInRange": {
+        "timeSeries": "metric.type=\"compute.googleapis.com/guest/cpu/load_1m\" resource.type=\"gce_instance\"",
+        "range": {
+          "min": "-Infinity",
+          "max": 80
+        }
+      }
+    }
+  }
+}
