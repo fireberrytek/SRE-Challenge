@@ -55,7 +55,7 @@ jobs:
             terraform apply plan.txt
             export ENDPOINT="$(terraform output endpoint)"
             mkdir -p /tmp/gke/
-            echo 'export ENDPOINT='${ENDPOINT} > /tmp/gke/gke-endpoint
+            echo $ENDPOINT > /tmp/gke/gke-endpoint
       - persist_to_workspace:
           root: /tmp/gke
           paths:
