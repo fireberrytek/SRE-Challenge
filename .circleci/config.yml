@@ -44,7 +44,8 @@ jobs:
           command: |
             export CLUSTER_NAME="dynamic-enablement-cluster"
             export TAG=0.2.<< pipeline.number >>
-            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${CIRCLE_PROJECT_REPONAME,,}:$TAG"
+            export IMAGE_NAME=${CIRCLE_PROJECT_REPONAME,,}
+            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${IMAGE_NAME}:$TAG"
             echo $TF_CLOUD_TOKEN | base64 -d > $HOME/.terraformrc
             echo $GOOGLE_CLOUD_KEYS > $HOME/gcloud_keys
             gcloud auth activate-service-account --key-file ${HOME}/gcloud_keys
@@ -72,7 +73,8 @@ jobs:
           command: |
             export CLUSTER_NAME="dynamic-enablement-cluster"
             export TAG=0.2.<< pipeline.number >>
-            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${CIRCLE_PROJECT_REPONAME,,}:$TAG"
+            export IMAGE_NAME=${CIRCLE_PROJECT_REPONAME,,}
+            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${IMAGE_NAME}:$TAG"
             echo $TF_CLOUD_TOKEN | base64 -d > $HOME/.terraformrc
             echo $GOOGLE_CLOUD_KEYS > $HOME/gcloud_keys.json
             gcloud auth activate-service-account --key-file ${HOME}/gcloud_keys.json
