@@ -1,13 +1,102 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine. See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
-# Use a package of configuration called an orb.
-orbs:
-  # Declare a dependency on the welcome-orb
-  welcome: circleci/welcome-orb@0.4.1
-# Orchestrate or schedule a set of jobs
+jobs:
+  build_docker_image:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Build Docker image
+          command: |
+            export TAG=0.2.<< pipeline.number >>
+            export IMAGE_NAME=$CIRCLE_PROJECT_REPONAME
+            docker build -t $DOCKER_LOGIN/$IMAGE_NAME -t $DOCKER_LOGIN/$IMAGE_NAME:$TAG .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $DOCKER_LOGIN/$IMAGE_NAME
+  gke_create_cluster:
+    docker:
+      - image: ariv3ra/terraform-gcp:latest
+    environment:
+      CLOUDSDK_CORE_PROJECT: dynamic-enablement-7000
+    steps:
+      - checkout
+      - run:
+          name: Create GKE Cluster
+          command: |
+            echo $TF_CLOUD_TOKEN | base64 -d > $HOME/.terraformrc
+            echo $GOOGLE_CLOUD_KEYS | base64 -d > $HOME/gcloud_keys
+            gcloud auth activate-service-account --key-file ${HOME}/gcloud_keys
+            cd terraform/gkecluster/
+            terraform init
+            terraform plan -var credentials=$HOME/gcloud_keys -out=plan.txt
+            terraform apply plan.txt
+  gke_deploy_app:
+    docker:
+      - image: ariv3ra/terraform-gcp:latest
+    environment:
+      CLOUDSDK_CORE_PROJECT: dynamic-enablement-7000
+    steps:
+      - checkout
+      - run:
+          name: Deploy App to GKE
+          command: |
+            export CLUSTER_NAME="dynamic-enablement-cluster"
+            export TAG=0.2.<< pipeline.number >>
+            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${CIRCLE_PROJECT_REPONAME}:$TAG"
+            echo $TF_CLOUD_TOKEN | base64 -d > $HOME/.terraformrc
+            echo $GOOGLE_CLOUD_KEYS | base64 -d > $HOME/gcloud_keys
+            gcloud auth activate-service-account --key-file ${HOME}/gcloud_keys
+            gcloud container clusters get-credentials $CLUSTER_NAME --zone="us-west1-c"
+            cd terraform/kubeapp/
+            terraform init
+            terraform plan -var $DOCKER_IMAGE -out=plan.txt
+            terraform apply plan.txt
+            export ENDPOINT="$(terraform output endpoint)"
+            mkdir -p /tmp/gke/
+            echo 'export ENDPOINT='${ENDPOINT} > /tmp/gke/gke-endpoint
+      - persist_to_workspace:
+          root: /tmp/gke
+          paths:
+            - "*"
+  gke_destroy_cluster:
+    docker:
+      - image: ariv3ra/terraform-gcp:latest
+    environment:
+      CLOUDSDK_CORE_PROJECT: dynamic-enablement-7000
+    steps:
+      - checkout
+      - run:
+          name: Destroy GKE Cluster
+          command: |
+            export CLUSTER_NAME="dynamic-enablement-cluster"
+            export TAG=0.2.<< pipeline.number >>
+            export DOCKER_IMAGE="docker-image=${DOCKER_LOGIN}/${CIRCLE_PROJECT_REPONAME}:$TAG"
+            echo $TF_CLOUD_TOKEN | base64 -d > $HOME/.terraformrc
+            echo $GOOGLE_CLOUD_KEYS | base64 -d > $HOME/gcloud_keys
+            gcloud auth activate-service-account --key-file ${HOME}/gcloud_keys
+            cd terraform/kubeapp/
+            terraform init
+            gcloud container clusters get-credentials $CLUSTER_NAME --zone="us-west1-c"
+            terraform destroy -var $DOCKER_IMAGE --auto-approve
+            cd ../gkecluster/
+            terraform init
+            terraform destroy -var credentials=$HOME/gcloud_keys --auto-approve
 workflows:
-  # Name the workflow "welcome"
-  welcome:
-    # Run the welcome/run job in its own container
+  build_deploy:
     jobs:
-      - welcome/run
+      - build_docker_image
+      - gke_create_cluster
+      - gke_deploy_app:
+          requires:
+            - build_docker_image
+            - gke_create_cluster
+      - approve-destroy:
+          type: approval
+          requires:
+            - gke_create_cluster
+            - gke_deploy_app
+      - gke_destroy_cluster:
+          requires:
+            - approve-destroy
