@@ -53,12 +53,7 @@ jobs:
             terraform init
             terraform plan -var $DOCKER_IMAGE -out=plan.txt
             terraform apply plan.txt
-            export ENDPOINT="$(terraform output endpoint)"
-            mkdir -p /tmp/gke/ && echo $ENDPOINT > /tmp/gke/gke-endpoint
-      - persist_to_workspace:
-          root: /tmp/gke
-          paths:
-            - "*"
+            terraform output endpoint
   gke_destroy_cluster:
     docker:
       - image: ariv3ra/terraform-gcp:latest
